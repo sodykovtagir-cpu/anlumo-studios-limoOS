@@ -34,22 +34,104 @@
 - Linux (или WSL под Windows)  
 - Установленный кросс-компилятор `i686-elf-gcc`, `nasm`, `make`, `qemu-system-i386`
 
-### Сборка
-```bash
-git clone https://github.com/anlumo/limos.git
-cd limos
-make clean
-make
+### 📦 Создание приложений для LimoOS (.lxe)
+LimoOS использует свой собственный формат исполняемых файлов — .lxe (Limo eXecutable). Это простой плоский бинарник (flat binary), который загружается в память и запускается напрямую.
 
-## 💿 Сборка ISO-образа (для реального железа)
+🔧 Требования
+nasm (для ассемблера)
 
-Сейчас LimoOS загружается через QEMU с флагом `-kernel`.  
-В планах – создание загрузочного ISO с помощью GRUB, чтобы можно было:
+i686-elf-gcc (для C, опционально)
 
-- Записать образ на флешку (`dd if=limos.iso of=/dev/sdX`)
-- Загружаться на старых компьютерах (Pentium III, Core 2 Duo)
-- Тестировать без эмулятора
+LimoOS (конечно)
 
-Команда для сборки ISO (когда будет реализовано):
-```bash
-make iso
+1. Простейшее приложение на ассемблере
+Создай файл hello.asm:
+
+nasm
+; hello.asm – минимальное .lxe приложение
+bits 32
+section .text
+
+_start:
+    mov eax, 0xB8000          ; видеопамять текстового режима
+    mov ebx, msg
+    xor ecx, ecx
+
+.loop:
+    mov dl, [ebx + ecx]
+    test dl, dl
+    jz .done
+    mov [eax + ecx*2], dl
+    mov byte [eax + ecx*2 + 1], 0x0F  ; белый на чёрном
+    inc ecx
+    jmp .loop
+
+.done:
+    ret
+
+msg db "Hello from .lxe!", 0
+Сборка:
+
+bash
+nasm -f bin hello.asm -o hello.lxe
+2. Приложение на C
+hello.c:
+
+c
+void _start(void) {
+    volatile char* vga = (char*)0xB8000;
+    const char msg[] = "Hello from C .lxe!";
+    int i = 0;
+    while (msg[i]) {
+        vga[i*2] = msg[i];
+        vga[i*2 + 1] = 0x0F;
+        i++;
+    }
+}
+Сборка:
+
+bash
+i686-elf-gcc -ffreestanding -m32 -fno-pic -fno-pie -c hello.c -o hello.o
+i686-elf-gcc -nostdlib -ffreestanding -m32 -fno-pic -fno-pie \
+    -Ttext=0x400000 -Wl,--oformat=binary -Wl,-e,_start -o hello.lxe hello.o
+3. Запуск в LimoOS
+Помести hello.lxe в образ дискеты или в корень ISO. В командной строке LimoOS выполни:
+
+text
+run hello.lxe
+Если приложение написано правильно, ты увидишь вывод на экране.
+
+4. Формат .lxe (технические детали)
+Файл .lxe – это плоский бинарник без заголовков. Он загружается по фиксированному адресу (обычно 0x400000). Точка входа определяется линковщиком (метка _start).
+
+Поле	Размер	Описание
+Код	любое	Инструкции процессора x86
+Данные	любое	Константы, строки
+Никаких сложных заголовков — только код и данные.
+
+5. Пример Makefile для сборки .lxe
+makefile
+# Makefile для сборки .lxe приложений
+
+CC = i686-elf-gcc
+ASM = nasm
+CFLAGS = -ffreestanding -m32 -fno-pic -fno-pie -nostdlib
+LDFLAGS = -Ttext=0x400000 --oformat binary -e _start
+
+all: hello.lxe
+
+hello.asm.lxe: hello.asm
+	$(ASM) -f bin $< -o $@
+
+hello.c.lxe: hello.c
+	$(CC) $(CFLAGS) -c $< -o hello.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ hello.o
+
+clean:
+	rm -f *.o *.lxe
+6. Важные замечания
+Не используй системные вызовы Linux/Windows — они не работают в LimoOS. Общайся с "железом" напрямую (видеопамять, порты).
+
+Приложение должно завершаться инструкцией ret.
+
+Если приложение зависает — проверь, что точка входа (_start) и адрес линковки (0x400000) правильные.
