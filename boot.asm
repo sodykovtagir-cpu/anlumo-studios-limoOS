@@ -1,4 +1,4 @@
-; (c) 2025 Anlumo Studios
+; (c) 2026 Anlumo Studios
 
 section .multiboot
 align 4

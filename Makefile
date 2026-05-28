@@ -1,3 +1,4 @@
+# (c) 2026 Anlumo Studios
 CC = i686-elf-gcc
 LD = i686-elf-gcc
 ASM = nasm
@@ -5,7 +6,11 @@ ASM = nasm
 CFLAGS = -ffreestanding -m32 -nostdlib -Wall -Wextra
 LDFLAGS = -ffreestanding -O2 -nostdlib
 
-OBJS = boot.o kernel.o vga.o gdt.o gdt_asm.o keyboard.o
+OBJS = boot.o kernel.o vga.o gdt.o gdt_asm.o keyboard.o vfs.o
+
+ISO_DIR = iso
+ISO_BOOT = $(ISO_DIR)/boot
+ISO_GRUB = $(ISO_BOOT)/grub
 
 all: limos.bin
 
@@ -21,6 +26,9 @@ vga.o: drivers/vga.c drivers/io.h
 keyboard.o: drivers/keyboard.c drivers/io.h
 	$(CC) $(CFLAGS) -c drivers/keyboard.c -o keyboard.o
 
+vfs.o: drivers/vfs.c drivers/vfs.h
+	$(CC) $(CFLAGS) -c drivers/vfs.c -o vfs.o
+
 gdt.o: kernel/gdt.c
 	$(CC) $(CFLAGS) -c kernel/gdt.c -o gdt.o
 
@@ -33,5 +41,19 @@ limos.bin: $(OBJS)
 run: limos.bin
 	qemu-system-i386 -kernel limos.bin
 
+iso: limos.bin
+	@mkdir -p $(ISO_GRUB)
+	@cp limos.bin $(ISO_BOOT)/
+	@echo "set timeout=5" > $(ISO_GRUB)/grub.cfg
+	@echo "set default=0" >> $(ISO_GRUB)/grub.cfg
+	@echo "" >> $(ISO_GRUB)/grub.cfg
+	@echo "menuentry \"LimoOS v0.2\" {" >> $(ISO_GRUB)/grub.cfg
+	@echo "    multiboot /boot/limos.bin" >> $(ISO_GRUB)/grub.cfg
+	@echo "    boot" >> $(ISO_GRUB)/grub.cfg
+	@echo "}" >> $(ISO_GRUB)/grub.cfg
+	@grub-mkrescue -o limos.iso $(ISO_DIR)
+	@echo "ISO created: limos.iso"
+
 clean:
 	rm -f *.o *.bin
+	rm -rf $(ISO_DIR) limos.iso
