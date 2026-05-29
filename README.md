@@ -4,7 +4,7 @@
 Это 32-битная ОС с собственным ядром **LimCore**, командной строкой.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![GitHub release](https://img.shields.io/badge/release-v0.1-blue)](https://github.com/anlumo/limos/releases)
+[![GitHub release](https://img.shields.io/badge/release-v0.2-blue)](https://github.com/anlumo/limos/releases)
 
 ---
 
